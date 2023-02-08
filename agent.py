@@ -71,7 +71,7 @@ class Agent():
             print(f"扫描异常:{traceback.format_exc()}")
 
     def start(self):
-        # self.connect()
+        self.connect()
         self.start_flask_app()
         self.qt_app.exec_()
 
@@ -128,9 +128,9 @@ class Agent():
 
     def get_client_list_from_server(self):
         """从register_server获得client_list"""
-        url = f"{self.server_address}:{self.port}/clipboard/get_agent"
+        url = f"http://{self.server_address}:{self.port}/clipboard/get_agent"
         response = requests.request("GET", url)
-        res_data = response.content.get('data')
+        res_data = json.loads(response.content).get('data')
         return res_data
 
     def get_clipboard(self):
@@ -154,7 +154,7 @@ class Agent():
         """同步agent的剪切板"""
         for tip in self.get_client_list():
             if tip != self.ip:
-                url = f"{tip}:{self.port}/clipboard/update_clipboard"
+                url = f"http://{tip}:{self.port}/clipboard/update_clipboard"
                 payload = json.dumps({"text": text, "file_list": file_list})
                 headers = {'Content-Type': 'application/json'}
                 response = requests.request("POST", url, headers=headers, data=payload, timeout=1)

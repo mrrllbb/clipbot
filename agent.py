@@ -135,9 +135,9 @@ class Agent():
 
     def get_client_list_from_server(self):
         """从register_server获得client_list"""
-        url = f"{self.server_address}:{self.port}/clipboard/get_agent"
+        url = f"http://{self.server_address}:{self.port}/clipboard/get_agent"
         response = requests.request("GET", url)
-        res_data = response.content.get('data')
+        res_data = json.loads(response.content).get('data')
         return res_data
 
     def get_clipboard(self):

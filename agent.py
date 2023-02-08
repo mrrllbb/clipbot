@@ -34,6 +34,13 @@ class Agent():
         self.clipboard = self.qt_app.clipboard()
         self.clipboard.dataChanged.connect(self.get_clipboard)
         self.ip = RegisterServer.get_host()
+        self.remote_flag = False
+
+    def switch_remote_flag(self, flag=None):
+        if flag is None:
+            self.remote_flag = not self.remote_flag
+        else:
+            self.remote_flag = flag
 
 
     def discover(self, ip):
@@ -71,7 +78,7 @@ class Agent():
             print(f"扫描异常:{traceback.format_exc()}")
 
     def start(self):
-        # self.connect()
+        self.connect()
         self.start_flask_app()
         self.qt_app.exec_()
 
@@ -134,27 +141,28 @@ class Agent():
         return res_data
 
     def get_clipboard(self):
-        data = self.clipboard.mimeData()
-        print(data.formats())
-        file_list = []
-        text = ""
-        if data.hasFormat('text/uri-list'):
-            for path in data.urls():
-                # 打印复制的路径
-                temp_path = path.path()[1:]
-                print(temp_path)
-                if os.path.isfile(temp_path):
-                    file_list.append(temp_path)
-        # 如果是纯文本类型，打印文本的值
-        if data.hasFormat('text/plain'):
-            text = data.text()
-        self.send_clipboard(file_list, text)
+        if not self.remote_flag:
+            data = self.clipboard.mimeData()
+            print(data.formats())
+            file_list = []
+            text = ""
+            if data.hasFormat('text/uri-list'):
+                for path in data.urls():
+                    # 打印复制的路径
+                    temp_path = path.path()[1:]
+                    print(temp_path)
+                    if os.path.isfile(temp_path):
+                        file_list.append(temp_path)
+            # 如果是纯文本类型，打印文本的值
+            if data.hasFormat('text/plain'):
+                text = data.text()
+            self.send_clipboard(file_list, text)
 
     def send_clipboard(self, file_list, text):
         """同步agent的剪切板"""
         for tip in self.get_client_list():
             if tip != self.ip:
-                url = f"{tip}:{self.port}/clipboard/update_clipboard"
+                url = f"http://{tip}:{self.port}/clipboard/update_clipboard"
                 payload = json.dumps({"text": text, "file_list": file_list})
                 headers = {'Content-Type': 'application/json'}
                 response = requests.request("POST", url, headers=headers, data=payload, timeout=1)
@@ -168,6 +176,7 @@ if __name__ == "__main__":
 
     @clipboard_update_signal.connect
     def update_clipboard(sender, *args, **kwargs):
+        agent.switch_remote_flag(True)
         file_list = kwargs["file_list"]
         text = kwargs["text"]
         if text:

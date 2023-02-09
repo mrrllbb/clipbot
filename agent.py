@@ -13,7 +13,7 @@ import requests
 import api
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import QMimeData, QUrl
-from utils.signal import clipboard_update_signal
+from utils.signal import clipboard_update_signal, clipboard_listener
 
 
 
@@ -32,7 +32,11 @@ class Agent():
         self.blueprint_dict = {}
         self.qt_app = QApplication([])
         self.clipboard = self.qt_app.clipboard()
-        self.clipboard.dataChanged.connect(self.get_clipboard)
+        if self.get_platform() == "Macos":
+            print("mac run listener")
+            self.mac_listen_clipboard()
+        else:
+            self.clipboard.dataChanged.connect(self.get_clipboard)
         self.ip = RegisterServer.get_host()
         self.remote_flag = False
 
@@ -41,6 +45,34 @@ class Agent():
             self.remote_flag = not self.remote_flag
         else:
             self.remote_flag = flag
+
+    @staticmethod
+    def get_platform():
+        import platform
+        sys_platform = platform.platform().lower()
+        if "windows" in sys_platform:
+            return "Windows"
+        elif "macos" in sys_platform:
+            return "Macos"
+        elif "linux" in sys_platform:
+            return "Linux"
+        else:
+            return "其他系统"
+
+    def mac_listen_clipboard(self):
+        threading.Thread(target=self.listen_clipboard).start()
+
+    def listen_clipboard(self):
+        init_data = self.clipboard.mimeData()
+        init_text = init_data.text()
+        init_file_list = init_data.urls()
+        while True:
+            data = self.clipboard.mimeData()
+            if data.text() != init_text or data.urls() != init_file_list:
+                init_text = data.text()
+                init_file_list = data.urls()
+                clipboard_listener.send()
+            time.sleep(0.2)
 
 
     def discover(self, ip):
@@ -141,9 +173,11 @@ class Agent():
         return res_data
 
     def get_clipboard(self):
-        if not self.remote_flag:
+        if self.remote_flag:
+            self.switch_remote_flag()
+        else:
             data = self.clipboard.mimeData()
-            print(data.formats())
+            print(data.formats(), data.text())
             file_list = []
             text = ""
             if data.hasFormat('text/uri-list'):
@@ -177,10 +211,17 @@ if __name__ == "__main__":
     @clipboard_update_signal.connect
     def update_clipboard(sender, *args, **kwargs):
         agent.switch_remote_flag(True)
+        print(kwargs)
         file_list = kwargs["file_list"]
         text = kwargs["text"]
         if text:
             agent.clipboard.setText(text)
         if file_list:
             print(file_list)
+        # agent.switch_remote_flag(False)
+
+
+    @clipboard_listener.connect
+    def get_clipboard(sender, *args, **kwargs):
+        agent.get_clipboard()
     agent.start()
